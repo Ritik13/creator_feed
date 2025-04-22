@@ -1,10 +1,11 @@
 import slugify from "slugify";
 import { Feed } from "../models/index.js";
+import redisClient from "../config/redisClient.js";
 
 export const createFeed = async (req, res) => {
-    console.info("In Feed Controlelr")
     try {
         const { title, content, imageUrl, status, slug } = req.body;
+        feedCache.store = {};
         let slg = slug || slugify(title, {
             lower: true,
             replacement: '_',
@@ -27,7 +28,9 @@ export const createFeed = async (req, res) => {
             slug: slg,
             userId: req.user.id
         })
-
+        await redisClient.keys('feeds:*').then(keys => {
+            if (keys.length) redisClient.del(...keys);
+        });
         if (result) res.status(200).send({ message: "Created feed" });
         else res.status(400).send({ message: "Cannot create feed" });
     } catch (err) {
@@ -43,6 +46,13 @@ export const getFeed = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const { q, status } = req.query;
+    const cacheKey = `feeds:${page}:${limit}${status || 'all'}${q || ''}`;
+
+    const feedCacheData = await redisClient.get(cacheKey);
+    if (feedCacheData) {
+        console.log("From Cache");
+        return res.status(200).json(JSON.parse(feedCacheData));
+    }
 
     const where = {
         isDeleted: false,
@@ -57,6 +67,7 @@ export const getFeed = async (req, res) => {
     };
 
     try {
+        console.log("DB Called");
         const { count, rows: feeds } = await Feed.findAndCountAll({
             where,
             limit,
@@ -64,17 +75,22 @@ export const getFeed = async (req, res) => {
             order: [['createdAt', 'DESC']],
         });
 
-        res.status(200).json({
+        const result = {
             currentPage: page,
             totalPages: Math.ceil(count / limit),
             totalCount: count,
             feeds,
-        });
+        };
+
+        await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 10);
+
+        res.status(200).json(result);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+       const error = new Error(err);
+       error.statusCode = 404;
+       throw err;
     }
 };
-
 
 export const patchFeed = async (req, res) => {
     const feedId = req.params.id;
@@ -87,7 +103,9 @@ export const patchFeed = async (req, res) => {
         if (feed.userId !== req.user.id) {
             return res.status(403).json({ error: "Unauthorized" });
         }
-
+        await redisClient.keys('feeds:*').then(keys => {
+            if (keys.length) redisClient.del(...keys);
+        });
         await feed.update({ title, content, imageUrl, status });
         res.status(200).json({ message: "Feed updated successfully" });
 
@@ -99,7 +117,6 @@ export const patchFeed = async (req, res) => {
 
 export const deleteFeed = async (req, res) => {
     const feedId = req.params.id;
-
     try {
         const feed = await Feed.findByPk(feedId);
         if (!feed || feed.isDeleted) return res.status(404).json({ error: "Feed not found" });
@@ -107,7 +124,9 @@ export const deleteFeed = async (req, res) => {
         if (feed.userId !== req.user.id) {
             return res.status(403).json({ error: "Unauthorized" });
         }
-
+        await redisClient.keys('feeds:*').then(keys => {
+            if (keys.length) redisClient.del(...keys);
+        });
         await feed.update({ isDeleted: true });
         res.status(200).json({ message: "Feed deleted (soft)" });
 
@@ -120,7 +139,9 @@ export const deleteFeed = async (req, res) => {
 export const restoreFeed = async (req, res) => {
     const feedId = req.params.id;
     const role = req.user.role;
-
+    await redisClient.keys('feeds:*').then(keys => {
+        if (keys.length) redisClient.del(...keys);
+    });
     try {
         const feed = await Feed.findByPk(feedId);
 
@@ -144,6 +165,7 @@ export const restoreFeed = async (req, res) => {
 export const insertBulkPost = async (req, res) => {
     try {
         const collection = req.body;
+        feedCache.store = {};
         for (const element of collection) {
             const { title, content, imageUrl, status, slug } = element;
             let slg = slug || slugify(title, {
@@ -159,7 +181,7 @@ export const insertBulkPost = async (req, res) => {
                 slugExist = await Feed.findOne({ where: { slug: slg } });
                 count++;
             }
-           await Feed.create({
+            await Feed.create({
                 title,
                 content,
                 imageUrl,
@@ -169,7 +191,7 @@ export const insertBulkPost = async (req, res) => {
             })
         };
 
-       res.status(200).send({ message: "Created feed" });
+        res.status(200).send({ message: "Created feed" });
     } catch (err) {
         return res.status(500).send({ 'error': err.message });
     }
