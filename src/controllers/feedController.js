@@ -139,3 +139,38 @@ export const restoreFeed = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+
+
+export const insertBulkPost = async (req, res) => {
+    try {
+        const collection = req.body;
+        for (const element of collection) {
+            const { title, content, imageUrl, status, slug } = element;
+            let slg = slug || slugify(title, {
+                lower: true,
+                replacement: '_',
+                trim: true
+            });
+
+            let count = 1;
+            let slugExist = await Feed.findOne({ where: { slug: slg } });
+            while (slugExist) {
+                slg = `${slugify(title, { lower: true })}-${count}`;
+                slugExist = await Feed.findOne({ where: { slug: slg } });
+                count++;
+            }
+           await Feed.create({
+                title,
+                content,
+                imageUrl,
+                status,
+                slug: slg,
+                userId: req.user.id
+            })
+        };
+
+       res.status(200).send({ message: "Created feed" });
+    } catch (err) {
+        return res.status(500).send({ 'error': err.message });
+    }
+}

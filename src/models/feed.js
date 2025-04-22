@@ -19,7 +19,8 @@ const Feed = sequelize_instance.define(
         },
         imageUrl: {
             type: DataTypes.STRING,
-            allowNull: true
+            allowNull: true,
+            defaultValue: ''
         },
         status: {
             type: DataTypes.ENUM('draft', 'published'),
