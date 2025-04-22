@@ -5,7 +5,6 @@ import redisClient from "../config/redisClient.js";
 export const createFeed = async (req, res) => {
     try {
         const { title, content, imageUrl, status, slug } = req.body;
-        feedCache.store = {};
         let slg = slug || slugify(title, {
             lower: true,
             replacement: '_',
@@ -86,9 +85,9 @@ export const getFeed = async (req, res) => {
 
         res.status(200).json(result);
     } catch (err) {
-       const error = new Error(err);
-       error.statusCode = 404;
-       throw err;
+        const error = new Error(err);
+        error.statusCode = 404;
+        throw err;
     }
 };
 
@@ -165,7 +164,6 @@ export const restoreFeed = async (req, res) => {
 export const insertBulkPost = async (req, res) => {
     try {
         const collection = req.body;
-        feedCache.store = {};
         for (const element of collection) {
             const { title, content, imageUrl, status, slug } = element;
             let slg = slug || slugify(title, {
