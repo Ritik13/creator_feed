@@ -1,4 +1,10 @@
-import Redis from 'ioredis'
-const redisClient = new Redis();
+import { Redis } from 'ioredis';
 
-export default redisClient;
+export const redisConnection = {
+  host: 'localhost',
+  port: 6379,
+  maxRetriesPerRequest: null,
+};
+
+const redisClient = new Redis(redisConnection);
+export default redisClient

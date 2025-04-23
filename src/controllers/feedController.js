@@ -1,6 +1,7 @@
 import slugify from "slugify";
 import { Feed } from "../models/index.js";
 import redisClient from "../config/redisClient.js";
+import { emailQueue } from "../queues/emailQueue.js";
 
 export const createFeed = async (req, res) => {
     try {
@@ -30,7 +31,24 @@ export const createFeed = async (req, res) => {
         await redisClient.keys('feeds:*').then(keys => {
             if (keys.length) redisClient.del(...keys);
         });
-        if (result) res.status(200).send({ message: "Created feed" });
+        if (result) {
+            res.status(200).send({ message: "Created feed" });
+
+            //queue email
+            console.log('Queueing email...');
+            await emailQueue.add('send-email', {
+                to: req.user.email,
+                subject: 'Your Feed is Live!',
+                body: `Thanks for creating: ${title}`,
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 2000
+                }
+            });
+            console.log('Email job added');
+        }
         else res.status(400).send({ message: "Cannot create feed" });
     } catch (err) {
         return res.status(500).send({ 'error': err.message });
