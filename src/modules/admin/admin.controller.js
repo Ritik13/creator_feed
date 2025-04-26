@@ -5,7 +5,7 @@ const Transaction = require("../transaction/transaction.model");
 
 const { Op } = require("sequelize");
 
-export const getAdminSummary = async (req, res) => {
+ const getAdminSummary = async (req, res) => {
   try {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -47,7 +47,7 @@ export const getAdminSummary = async (req, res) => {
   }
 };
 
-export const getTopCreators = async (req, res) => {
+ const getTopCreators = async (req, res) => {
   try {
     const creators = await Creator.findAll({
       order: [['total_earned', 'DESC']],
@@ -60,7 +60,7 @@ export const getTopCreators = async (req, res) => {
   }
 };
 
-export const getFailedPayouts = async (req, res) => {
+ const getFailedPayouts = async (req, res) => {
   try {
     const payouts = await Payout.findAll({
       where: { status: 'failed' },
@@ -73,7 +73,7 @@ export const getFailedPayouts = async (req, res) => {
   }
 };
 
-export const getPendingPayouts = async (req, res) => {
+ const getPendingPayouts = async (req, res) => {
   try {
     const payouts = await Payout.findAll({
       where: { status: 'pending' },
